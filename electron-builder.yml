@@ -7,6 +7,7 @@ directories:
   output: release
 
 win:
+  artifactName: "Rooted.PK.Setup.${version}.${ext}"
   target:
     - target: nsis
       arch: [x64]
