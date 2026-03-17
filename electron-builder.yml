@@ -1,6 +1,7 @@
 appId: com.rootedpk.desktop
 productName: Rooted PK
 copyright: Copyright © 2025 Rooted PK
+electronVersion: "34.3.4"
 
 directories:
   output: release
