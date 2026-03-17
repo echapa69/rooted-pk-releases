@@ -1,0 +1,29 @@
+appId: com.rootedpk.desktop
+productName: Rooted PK
+copyright: Copyright © 2025 Rooted PK
+
+directories:
+  output: release
+
+win:
+  target:
+    - target: nsis
+      arch: [x64]
+
+nsis:
+  oneClick: true
+  perMachine: false
+  allowToChangeInstallationDirectory: false
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: "Rooted PK"
+  runAfterFinish: true
+  deleteAppDataOnUninstall: false
+  installerLanguages:
+    - en_US
+
+publish:
+  provider: github
+  owner: echapa69
+  repo: rooted-pk-releases
+  releaseType: release
