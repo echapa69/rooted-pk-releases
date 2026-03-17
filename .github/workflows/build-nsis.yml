@@ -1,0 +1,82 @@
+name: Build NSIS Installer
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "App version to build (e.g. 1.0.8)"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  build-nsis:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout releases repo
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install electron-builder
+        run: npm install --save-dev electron-builder@26
+
+      - name: Update package.json version
+        shell: pwsh
+        run: |
+          $pkg = Get-Content "package.json" | ConvertFrom-Json
+          $pkg.version = "${{ inputs.version }}"
+          $pkg | ConvertTo-Json -Depth 10 | Set-Content "package.json"
+          Write-Host "Version set to ${{ inputs.version }}"
+
+      - name: Download win-unpacked zip
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $zipName = "Rooted.PK-${{ inputs.version }}-win.zip"
+          $url = "https://github.com/${{ github.repository }}/releases/download/v${{ inputs.version }}/$zipName"
+          Write-Host "Downloading: $url"
+          Invoke-WebRequest -Uri $url -OutFile "win-unpacked.zip" `
+            -Headers @{ Authorization = "Bearer ${{ secrets.GITHUB_TOKEN }}" }
+          Write-Host "Extracting..."
+          Expand-Archive -Path "win-unpacked.zip" -DestinationPath "." -Force
+          Write-Host "Extracted:"
+          Get-ChildItem -Depth 2 | Select-Object Name | Format-Table
+
+      - name: Build NSIS installer
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+        run: |
+          npx electron-builder --win nsis --prepackaged ./win-unpacked --publish never
+          Write-Host "=== Built files ==="
+          Get-ChildItem release/ | Select-Object Name, @{n="SizeMB";e={[math]::Round($_.Length/1MB,1)}} | Format-Table
+
+      - name: Upload NSIS installer and latest.yml
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $installer = Get-ChildItem -Path "release" -Filter "*.exe" |
+            Where-Object { $_.Name -notlike "*unpack*" } |
+            Select-Object -First 1
+          if (-not $installer) {
+            Write-Error "No installer .exe found in release/"
+            exit 1
+          }
+          Write-Host "Uploading: $($installer.Name) ($([math]::Round($installer.Length/1MB,1)) MB)"
+          gh release upload "v${{ inputs.version }}" "$($installer.FullName)" --clobber
+
+          $latestYml = Get-ChildItem -Path "release" -Filter "latest.yml" | Select-Object -First 1
+          if ($latestYml) {
+            Write-Host "Uploading latest.yml"
+            gh release upload "v${{ inputs.version }}" "$($latestYml.FullName)" --clobber
+          }
+          Write-Host "Done - NSIS installer published to v${{ inputs.version }}"
