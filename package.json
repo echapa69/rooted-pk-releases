@@ -1,0 +1,9 @@
+{
+  "name": "rooted-pk-desktop",
+  "version": "0.0.0",
+  "description": "Rooted PK Desktop",
+  "main": "dist/electron/main.js",
+  "devDependencies": {
+    "electron-builder": "^26.0.0"
+  }
+}
