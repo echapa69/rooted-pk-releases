@@ -26,7 +26,7 @@ jobs:
       - name: Install electron-builder
         run: npm install --save-dev electron-builder@26.8.1
 
-        - name: Pre-populate NSIS cache (electron-builder 26.8 workaround)
+      - name: Pre-populate NSIS cache (electron-builder 26.8 workaround)
         shell: pwsh
         run: |
           $ver  = "3.0.4.1"
@@ -45,7 +45,7 @@ jobs:
           Copy-Item "$src\*" -Destination $dest -Recurse -Force
           Write-Host "NSIS cache populated"
           Get-ChildItem $dest | Select-Object Name | Format-Table
-        
+
       - name: Update package.json version
         shell: pwsh
         run: |
