@@ -29,30 +29,43 @@ jobs:
       - name: Extract NSIS binaries
         shell: pwsh
         run: |
-          $ver = "3.0.4.1"
-          $url = "https://github.com/electron-userland/electron-builder-binaries/releases/download/nsis-$ver/nsis-$ver.7z"
-          $tmp = "$env:TEMP\nsis-$ver.7z"
+          $ver  = "3.0.4.1"
+          $url  = "https://github.com/electron-userland/electron-builder-binaries/releases/download/nsis-$ver/nsis-$ver.7z"
+          $tmp  = "$env:RUNNER_TEMP\nsis-$ver.7z"
+          $dest = "$env:RUNNER_TEMP\nsis-bin"
+
           Write-Host "Downloading NSIS $ver ..."
           Invoke-WebRequest -Uri $url -OutFile $tmp -UseBasicParsing
+          Write-Host "Downloaded: $((Get-Item $tmp).Length) bytes"
 
-          $dest = "C:\nsis-bin"
           Remove-Item -Recurse -Force $dest -ErrorAction SilentlyContinue
+          New-Item -ItemType Directory -Force -Path $dest | Out-Null
+
           Write-Host "Extracting to $dest ..."
-          & "C:\Program Files\7-Zip\7z.exe" x $tmp -o"$dest" -y | Out-Null
+          & "C:\Program Files\7-Zip\7z.exe" x $tmp -o"$dest" -y
+          if ($LASTEXITCODE -ne 0) {
+            Write-Error "7-Zip failed (exit $LASTEXITCODE)"
+            exit 1
+          }
+
+          Write-Host "Archive contents at $dest :"
+          Get-ChildItem $dest | Select-Object Name, PSIsContainer | Format-Table
 
           $elevate = Get-ChildItem -Path $dest -Filter "elevate.exe" -Recurse | Select-Object -First 1
           if (-not $elevate) {
-            Write-Error "elevate.exe not found!"
+            Write-Error "elevate.exe not found in $dest !"
             Get-ChildItem -Recurse $dest | Select-Object FullName | Format-Table
             exit 1
           }
-          Write-Host "elevate.exe at: $($elevate.FullName)"
+          Write-Host "elevate.exe found at: $($elevate.FullName)"
+
           if ($elevate.DirectoryName -ne $dest) {
             Write-Host "Flattening from $($elevate.DirectoryName) to $dest"
             Copy-Item "$($elevate.DirectoryName)\*" -Destination $dest -Recurse -Force
           }
-          Write-Host "NSIS ready at $dest :"
-          Get-ChildItem $dest | Select-Object Name | Format-Table
+
+          Write-Host "NSIS ready. Exporting ELECTRON_BUILDER_NSIS_DIR=$dest"
+          "ELECTRON_BUILDER_NSIS_DIR=$dest" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
       - name: Update package.json version
         shell: pwsh
@@ -82,8 +95,8 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CSC_IDENTITY_AUTO_DISCOVERY: "false"
-          ELECTRON_BUILDER_NSIS_DIR: "C:\\nsis-bin"
         run: |
+          Write-Host "ELECTRON_BUILDER_NSIS_DIR=$env:ELECTRON_BUILDER_NSIS_DIR"
           npx electron-builder --win nsis --prepackaged ./win-unpacked --publish never
           Write-Host "=== Built files ==="
           Get-ChildItem release/ | Select-Object Name, @{n="SizeMB";e={[math]::Round($_.Length/1MB,1)}} | Format-Table
