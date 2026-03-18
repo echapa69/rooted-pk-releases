@@ -31,8 +31,8 @@ jobs:
         run: |
           $ver  = "3.0.4.1"
           $url  = "https://github.com/electron-userland/electron-builder-binaries/releases/download/nsis-$ver/nsis-$ver.7z"
-          $tmp  = "$env:RUNNER_TEMP\nsis-$ver.7z"
-          $dest = "$env:RUNNER_TEMP\nsis-bin"
+          $tmp  = "$env:GITHUB_WORKSPACE\nsis-$ver.7z"
+          $dest = "$env:GITHUB_WORKSPACE\nsis-bin"
 
           Write-Host "Downloading NSIS $ver ..."
           Invoke-WebRequest -Uri $url -OutFile $tmp -UseBasicParsing
@@ -64,8 +64,11 @@ jobs:
             Copy-Item "$($elevate.DirectoryName)\*" -Destination $dest -Recurse -Force
           }
 
-          Write-Host "NSIS ready. Exporting ELECTRON_BUILDER_NSIS_DIR=$dest"
+          Write-Host "NSIS ready at $dest"
+          Get-ChildItem $dest | Select-Object Name | Format-Table
+
           "ELECTRON_BUILDER_NSIS_DIR=$dest" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          Write-Host "Exported ELECTRON_BUILDER_NSIS_DIR=$dest"
 
       - name: Update package.json version
         shell: pwsh
@@ -87,8 +90,19 @@ jobs:
             -Headers @{ Authorization = "Bearer ${{ secrets.GITHUB_TOKEN }}" }
           Write-Host "Extracting..."
           Expand-Archive -Path "win-unpacked.zip" -DestinationPath "." -Force
-          Write-Host "Extracted:"
-          Get-ChildItem -Depth 2 | Select-Object Name | Format-Table
+          Write-Host "Extracted top-level:"
+          Get-ChildItem | Select-Object Name | Format-Table
+
+      - name: Verify NSIS binaries still present
+        shell: pwsh
+        run: |
+          Write-Host "ELECTRON_BUILDER_NSIS_DIR=$env:ELECTRON_BUILDER_NSIS_DIR"
+          if (-not (Test-Path "$env:ELECTRON_BUILDER_NSIS_DIR\elevate.exe")) {
+            Write-Error "elevate.exe MISSING from $env:ELECTRON_BUILDER_NSIS_DIR before build!"
+            Get-ChildItem $env:ELECTRON_BUILDER_NSIS_DIR -ErrorAction SilentlyContinue | Select-Object Name | Format-Table
+            exit 1
+          }
+          Write-Host "elevate.exe confirmed at: $env:ELECTRON_BUILDER_NSIS_DIR\elevate.exe"
 
       - name: Build NSIS installer
         shell: pwsh
