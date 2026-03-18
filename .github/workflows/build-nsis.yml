@@ -88,10 +88,11 @@ jobs:
           Write-Host "Downloading: $url"
           Invoke-WebRequest -Uri $url -OutFile "win-unpacked.zip" `
             -Headers @{ Authorization = "Bearer ${{ secrets.GITHUB_TOKEN }}" }
-          Write-Host "Extracting..."
-          Expand-Archive -Path "win-unpacked.zip" -DestinationPath "." -Force
-          Write-Host "Extracted top-level:"
-          Get-ChildItem | Select-Object Name | Format-Table
+          Write-Host "Extracting into win-unpacked\ ..."
+          Remove-Item -Recurse -Force "win-unpacked" -ErrorAction SilentlyContinue
+          Expand-Archive -Path "win-unpacked.zip" -DestinationPath "win-unpacked" -Force
+          Write-Host "win-unpacked\ top-level:"
+          Get-ChildItem "win-unpacked" | Select-Object Name | Format-Table
 
       - name: Verify NSIS binaries still present
         shell: pwsh
