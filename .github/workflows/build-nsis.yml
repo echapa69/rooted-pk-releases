@@ -29,21 +29,39 @@ jobs:
       - name: Pre-populate NSIS cache (electron-builder 26.8 workaround)
         shell: pwsh
         run: |
+      - name: Pre-populate NSIS cache (electron-builder 26.8 workaround)
+        shell: pwsh
+        run: |
           $ver  = "3.0.4.1"
           $dir  = "nsis-$ver-nsis-$ver"
           $dest = "$env:LOCALAPPDATA\electron-builder\Cache\nsis\$dir"
           New-Item -ItemType Directory -Force -Path $dest | Out-Null
+
           $url  = "https://github.com/electron-userland/electron-builder-binaries/releases/download/nsis-$ver/nsis-$ver.7z"
           $tmp  = "$env:TEMP\nsis-$ver.7z"
           Write-Host "Downloading NSIS $ver ..."
           Invoke-WebRequest -Uri $url -OutFile $tmp -UseBasicParsing
+
           $extract = "$env:TEMP\nsis-extract-$ver"
+          Remove-Item -Recurse -Force $extract -ErrorAction SilentlyContinue
           Write-Host "Extracting..."
           & "C:\Program Files\7-Zip\7z.exe" x $tmp -o"$extract" -y | Out-Null
-          $top = Get-ChildItem $extract | Select-Object -First 1
-          $src = if ($top.PSIsContainer) { $top.FullName } else { $extract }
+
+          Write-Host "Archive root contents:"
+          Get-ChildItem $extract | Select-Object Name, PSIsContainer | Format-Table
+
+          $elevate = Get-ChildItem -Path $extract -Filter "elevate.exe" -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
+          if (-not $elevate) {
+            Write-Error "elevate.exe not found in extracted archive. Archive structure:"
+            Get-ChildItem -Recurse $extract | Select-Object FullName | Format-Table
+            exit 1
+          }
+          $src = $elevate.Directory.FullName
+          Write-Host "Found elevate.exe at: $($elevate.FullName)"
+          Write-Host "Copying from: $src"
           Copy-Item "$src\*" -Destination $dest -Recurse -Force
-          Write-Host "NSIS cache populated"
+
+          Write-Host "NSIS cache populated at $dest :"
           Get-ChildItem $dest | Select-Object Name | Format-Table
 
       - name: Update package.json version
