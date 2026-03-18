@@ -26,42 +26,32 @@ jobs:
       - name: Install electron-builder
         run: npm install --save-dev electron-builder@26.8.1
 
-      - name: Pre-populate NSIS cache (electron-builder 26.8 workaround)
+      - name: Extract NSIS binaries
         shell: pwsh
         run: |
-      - name: Pre-populate NSIS cache (electron-builder 26.8 workaround)
-        shell: pwsh
-        run: |
-          $ver  = "3.0.4.1"
-          $dir  = "nsis-$ver-nsis-$ver"
-          $dest = "$env:LOCALAPPDATA\electron-builder\Cache\nsis\$dir"
-          New-Item -ItemType Directory -Force -Path $dest | Out-Null
-
-          $url  = "https://github.com/electron-userland/electron-builder-binaries/releases/download/nsis-$ver/nsis-$ver.7z"
-          $tmp  = "$env:TEMP\nsis-$ver.7z"
+          $ver = "3.0.4.1"
+          $url = "https://github.com/electron-userland/electron-builder-binaries/releases/download/nsis-$ver/nsis-$ver.7z"
+          $tmp = "$env:TEMP\nsis-$ver.7z"
           Write-Host "Downloading NSIS $ver ..."
           Invoke-WebRequest -Uri $url -OutFile $tmp -UseBasicParsing
 
-          $extract = "$env:TEMP\nsis-extract-$ver"
-          Remove-Item -Recurse -Force $extract -ErrorAction SilentlyContinue
-          Write-Host "Extracting..."
-          & "C:\Program Files\7-Zip\7z.exe" x $tmp -o"$extract" -y | Out-Null
+          $dest = "C:\nsis-bin"
+          Remove-Item -Recurse -Force $dest -ErrorAction SilentlyContinue
+          Write-Host "Extracting to $dest ..."
+          & "C:\Program Files\7-Zip\7z.exe" x $tmp -o"$dest" -y | Out-Null
 
-          Write-Host "Archive root contents:"
-          Get-ChildItem $extract | Select-Object Name, PSIsContainer | Format-Table
-
-          $elevate = Get-ChildItem -Path $extract -Filter "elevate.exe" -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
+          $elevate = Get-ChildItem -Path $dest -Filter "elevate.exe" -Recurse | Select-Object -First 1
           if (-not $elevate) {
-            Write-Error "elevate.exe not found in extracted archive. Archive structure:"
-            Get-ChildItem -Recurse $extract | Select-Object FullName | Format-Table
+            Write-Error "elevate.exe not found!"
+            Get-ChildItem -Recurse $dest | Select-Object FullName | Format-Table
             exit 1
           }
-          $src = $elevate.Directory.FullName
-          Write-Host "Found elevate.exe at: $($elevate.FullName)"
-          Write-Host "Copying from: $src"
-          Copy-Item "$src\*" -Destination $dest -Recurse -Force
-
-          Write-Host "NSIS cache populated at $dest :"
+          Write-Host "elevate.exe at: $($elevate.FullName)"
+          if ($elevate.DirectoryName -ne $dest) {
+            Write-Host "Flattening from $($elevate.DirectoryName) to $dest"
+            Copy-Item "$($elevate.DirectoryName)\*" -Destination $dest -Recurse -Force
+          }
+          Write-Host "NSIS ready at $dest :"
           Get-ChildItem $dest | Select-Object Name | Format-Table
 
       - name: Update package.json version
@@ -92,6 +82,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CSC_IDENTITY_AUTO_DISCOVERY: "false"
+          ELECTRON_BUILDER_NSIS_DIR: "C:\\nsis-bin"
         run: |
           npx electron-builder --win nsis --prepackaged ./win-unpacked --publish never
           Write-Host "=== Built files ==="
