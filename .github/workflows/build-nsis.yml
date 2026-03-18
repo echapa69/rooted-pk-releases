@@ -24,8 +24,28 @@ jobs:
           node-version: "20"
 
       - name: Install electron-builder
-        run: npm install --save-dev electron-builder@26
+        run: npm install --save-dev electron-builder@26.8.1
 
+        - name: Pre-populate NSIS cache (electron-builder 26.8 workaround)
+        shell: pwsh
+        run: |
+          $ver  = "3.0.4.1"
+          $dir  = "nsis-$ver-nsis-$ver"
+          $dest = "$env:LOCALAPPDATA\electron-builder\Cache\nsis\$dir"
+          New-Item -ItemType Directory -Force -Path $dest | Out-Null
+          $url  = "https://github.com/electron-userland/electron-builder-binaries/releases/download/nsis-$ver/nsis-$ver.7z"
+          $tmp  = "$env:TEMP\nsis-$ver.7z"
+          Write-Host "Downloading NSIS $ver ..."
+          Invoke-WebRequest -Uri $url -OutFile $tmp -UseBasicParsing
+          $extract = "$env:TEMP\nsis-extract-$ver"
+          Write-Host "Extracting..."
+          & "C:\Program Files\7-Zip\7z.exe" x $tmp -o"$extract" -y | Out-Null
+          $top = Get-ChildItem $extract | Select-Object -First 1
+          $src = if ($top.PSIsContainer) { $top.FullName } else { $extract }
+          Copy-Item "$src\*" -Destination $dest -Recurse -Force
+          Write-Host "NSIS cache populated"
+          Get-ChildItem $dest | Select-Object Name | Format-Table
+        
       - name: Update package.json version
         shell: pwsh
         run: |
